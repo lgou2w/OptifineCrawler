@@ -22,7 +22,6 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-import java.nio.charset.Charset
 import java.util.ArrayList
 import javax.xml.parsers.DocumentBuilderFactory
 
@@ -56,18 +55,30 @@ open class OptifineCrawler {
      **************************************************************************/
 
     /**
-     * 将请求到的页面完整内容进行解析为 Optifine 版本对象
+     * 将请求到的下载页面完整内容进行解析为 Optifine 版本对象列表
      */
     open fun requestVersionList(): List<OptifineVersion> {
         val list: MutableList<OptifineVersion> = ArrayList()
-        val content = requestContent().htmlEscapes()
         try {
-            val builder = DocumentBuilderFactory.newInstance().newDocumentBuilder()
-            val element = builder.parse(ByteArrayInputStream(content.toByteArray(Charset.forName("utf-8")))).documentElement
+            val connection = URL(parseDownloadUrl()).openConnection() as HttpURLConnection
+            connection.doInput = true
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+            connection.useCaches = false
+            connection.addRequestProperty("User-Agent", "MoonLake OptifineCrawler by lgou2w")
+            connection.connect()
+            val input = connection.inputStream
+            val byteArrayOutput = ByteArrayOutputStream()
+            val buffer: ByteArray = ByteArray(1024)
+            var length = 0
+            while(input.read(buffer).apply { length = this } != -1)
+                byteArrayOutput.write(buffer, 0, length)
 
+            val content = byteArrayOutput.toString("utf-8").toByteArray()
+            val builder = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+            val element = builder.parse(ByteArrayInputStream(content)).documentElement
             element
-                    .getElementsByTagName("table")
-                    .toArrayList()
+                    .getElementsByTagName("table").toArrayList()
                     .filter { it.getAttribute("class") == "downloadTable" }
                     .map { it.getElementsByTagName("tr").toArrayList() }
                     .forEach {
@@ -93,34 +104,6 @@ open class OptifineCrawler {
             throw RuntimeException(e)
         }
         return list
-    }
-
-    /**
-     * 请求 Optifine.net/downloads 页面的完整内容
-     */
-    protected open fun requestContent(): String {
-        val result: String?
-        try {
-            val connection = URL(parseDownloadUrl()).openConnection() as HttpURLConnection
-            connection.doInput = true
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
-            connection.useCaches = false
-            connection.addRequestProperty("User-Agent", "MoonLake OptifineCrawler by lgou2w")
-            connection.connect()
-            val input = connection.inputStream
-            val byteArrayOutput = ByteArrayOutputStream()
-            val buffer: ByteArray = ByteArray(4096)
-            var read = 0L; var length = 0
-            while(input.read(buffer).apply { length = this } != -1) {
-                byteArrayOutput.write(buffer, 0, length)
-                read += length
-            }
-            result = byteArrayOutput.toString("utf-8")
-        } catch (e: Exception) {
-            throw e
-        }
-        return result ?: ""
     }
 
     /**
