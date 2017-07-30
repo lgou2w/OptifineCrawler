@@ -21,6 +21,7 @@ package com.minecraft.moonlake.optifinecrawler
 
 import org.w3c.dom.Element
 import org.w3c.dom.NodeList
+import java.io.File
 
 /**************************************************************************
  *
@@ -30,7 +31,9 @@ import org.w3c.dom.NodeList
 
 fun main(args: Array<out String>) {
     val oc = OptifineCrawler()
-    oc.requestVersionList().forEach { println(it) }
+    val optifineVer = oc.requestVersionList()[0] // 下载第一个最新的预发布版
+    oc.downloadOptifine(optifineVer, File("target\\${optifineVer.version}.jar")) // 保存文件
+    println("下载完成.")
 }
 
 /**************************************************************************
@@ -39,13 +42,13 @@ fun main(args: Array<out String>) {
  *
  **************************************************************************/
 
-inline fun String.htmlEscape(vararg targets: HtmlEscape): String {
+inline fun String.httpEscape(vararg targets: HttpEscape): String {
     var final = this
     return targets.forEach { final = final.replace(it.escape, it.value) }.let { final }
 }
 
-inline fun String.htmlEscapes(): String
-        = htmlEscape(*HtmlEscape.values())
+inline fun String.httpEscapes(): String
+        = httpEscape(*HttpEscape.values())
 
 inline fun NodeList.toArrayList(): List<Element>
         = (0..this.length).map { this.item(it) }.filter { it != null && it is Element }.map { it as Element }

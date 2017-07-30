@@ -23,7 +23,7 @@ data class OptifineVersion(
         var downloadMirror: String? = null,
         var changelog: String? = null,
         var date: String? = null,
-        var pre: Boolean = false) {
+        var preview: Boolean = false) {
 
     /**
      * Version: OptiFine 1.12 HD U C4
@@ -31,6 +31,12 @@ data class OptifineVersion(
      * DownloadMirror: http://optifine.net/adloadx?f=OptiFine_1.12_HD_U_C4.jar
      * Changelog: http://optifine.net/changelog?f=OptiFine_1.12_HD_U_C4.jar
      * Date: 03.07.2017
-     * Pre: Pre Version
+     * Preview: Preview Version
      */
+
+    /**
+     * 获取此 Optifine 版本是否为空
+     */
+    fun isEmpty(): Boolean
+            = (version == null && download == null && downloadMirror == null && changelog == null && date == null)
 }

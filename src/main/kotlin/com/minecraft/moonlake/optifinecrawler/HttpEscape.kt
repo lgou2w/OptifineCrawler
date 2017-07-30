@@ -17,7 +17,7 @@
 
 package com.minecraft.moonlake.optifinecrawler
 
-enum class HtmlEscape(val escape: String, val value: String) {
+enum class HttpEscape(val escape: String, val value: String) {
 
     BREAK("<br>", "<br />"),
     LESS_THAN("&lt;", "<"),
