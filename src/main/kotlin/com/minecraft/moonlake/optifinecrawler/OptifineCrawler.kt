@@ -74,7 +74,7 @@ open class OptifineCrawler {
             while(input.read(buffer).apply { length = this } != -1)
                 byteArrayOutput.write(buffer, 0, length)
 
-            val content = byteArrayOutput.toString("utf-8").toByteArray()
+            val content = byteArrayOutput.toString("utf-8").htmlEscapes().toByteArray()
             val builder = DocumentBuilderFactory.newInstance().newDocumentBuilder()
             val element = builder.parse(ByteArrayInputStream(content)).documentElement
             element
