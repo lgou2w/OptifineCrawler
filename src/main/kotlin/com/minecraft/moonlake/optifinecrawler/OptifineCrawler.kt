@@ -86,7 +86,7 @@ open class OptifineCrawler {
                                     }
                                     "downloadLineDownload", "downloadLineDownloadFirst" -> optifineVer.download = (it.getElementsByTagName("a").item(0) as Element).getAttribute("href")
                                     "downloadLineMirror" -> optifineVer.downloadMirror = (it.getElementsByTagName("a").item(0) as Element).getAttribute("href")
-                                    "downloadLineChangelog" -> optifineVer.changelog = url + (it.getElementsByTagName("a").item(0) as Element).getAttribute("href")
+                                    "downloadLineChangelog" -> optifineVer.changelog = "$url/" + (it.getElementsByTagName("a").item(0) as Element).getAttribute("href")
                                     "downloadLineDate" -> optifineVer.date = it.textContent
                                 }
                             }

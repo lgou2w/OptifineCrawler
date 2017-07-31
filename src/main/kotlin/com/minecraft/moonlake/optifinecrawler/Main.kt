@@ -19,9 +19,9 @@
 
 package com.minecraft.moonlake.optifinecrawler
 
+import com.minecraft.moonlake.optifinecrawler.gui.OptifineCrawlerGui
 import org.w3c.dom.Element
 import org.w3c.dom.NodeList
-import java.io.File
 
 /**************************************************************************
  *
@@ -30,10 +30,7 @@ import java.io.File
  **************************************************************************/
 
 fun main(args: Array<out String>) {
-    val oc = OptifineCrawler()
-    val optifineVer = oc.requestVersionList()[0] // 下载第一个最新的预发布版
-    oc.downloadOptifine(optifineVer, File("target\\${optifineVer.version}.jar")) // 保存文件
-    println("下载完成.")
+    OptifineCrawlerGui.launch(args)
 }
 
 /**************************************************************************
