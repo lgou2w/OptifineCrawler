@@ -158,33 +158,15 @@ class OptifineCrawlerGui: Application() {
         task.stateProperty().addListener { _, _, newValue -> run {
             when(newValue) {
                 Worker.State.SCHEDULED -> disableBtnGroupButton(disableBtnGroup)
-                Worker.State.CANCELLED, Worker.State.FAILED, Worker.State.SUCCEEDED -> releaseDownloadGroup()
+                Worker.State.CANCELLED, Worker.State.FAILED, Worker.State.SUCCEEDED -> disableBtnGroupButton(false)
                 else -> { }
             }
         }}
         downloadProgress.progressProperty().bind(task.progressProperty())
         downloadLabel.textProperty().bind(task.messageProperty())
-        Thread(task).start()
-    }
-
-    private fun releaseDownloadGroup() {
-        val service = object: ScheduledService<Unit>() {
-            override fun createTask(): Task<Unit> {
-                return object: Task<Unit>() {
-                    override fun call() {
-                        Platform.runLater {
-                            disableBtnGroupButton(false)
-                            downloadProgress.progressProperty().unbind()
-                            downloadProgress.progress = -1.0
-                            downloadLabel.textProperty().unbind()
-                            downloadLabel.text = "No Download"
-                        }
-                    }
-                }
-            }
-        }
-        service.delay = Duration.seconds(3.0)
-        service.start()
+        val thread = Thread(task, "OptifineCrawler Download Task")
+        thread.isDaemon = true
+        thread.start()
     }
 
     private fun disableBtnGroupButton(state: Boolean) {
