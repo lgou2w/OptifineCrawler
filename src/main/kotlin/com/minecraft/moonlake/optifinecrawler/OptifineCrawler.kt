@@ -49,6 +49,7 @@ open class OptifineCrawler {
      *
      **************************************************************************/
 
+    constructor(factory: HttpRequestFactory = optifineFactory()): this("http://optifine.net", factory)
     constructor(url: String = "http://optifine.net", factory: HttpRequestFactory = optifineFactory()) {
         this.url = url
         this.factory = factory
@@ -104,6 +105,14 @@ open class OptifineCrawler {
      */
     @Throws(RuntimeException::class, IllegalStateException::class)
     open fun downloadOptifine(optifineVer: OptifineVersion, out: File) {
+        factory.requestDownload(parseResultFileUrl(optifineVer), out)
+    }
+
+    /**
+     * 解析目标 Optifine 版本的结果文件链接
+     */
+    @Throws(RuntimeException::class, IllegalStateException::class)
+    open fun parseResultFileUrl(optifineVer: OptifineVersion): String {
         if(optifineVer.isEmpty() || optifineVer.downloadMirror == null)
             throw IllegalStateException("目标 Optifine 版本对象信息为空或下载镜像为 null 值.")
 
@@ -118,8 +127,7 @@ open class OptifineCrawler {
             val matcher = Pattern.compile("\"downloadx\\?f=${if(optifineVer.preview) "preview_" else ""}OptiFine(.*)\"").matcher(content)
             while (matcher.find())
                 target = "http://optifine.net/downloadx?f=${if(optifineVer.preview) "preview_" else ""}OptiFine${matcher.group(1)}"
-            // 解析成功后完成最后的下载任务
-            factory.requestDownload(target, out)
+            return target
         } catch (e: Exception) {
             throw RuntimeException(e)
         }
@@ -141,7 +149,7 @@ open class OptifineCrawler {
         /**
          * OptifineCrawler 的默认 Http 请求工厂
          */
-        private fun optifineFactory(): HttpRequestFactory {
+        fun optifineFactory(): HttpRequestFactory {
             return object: HttpRequestFactory {
                 @Throws(Exception::class)
                 override fun requestGet(url: String): String {
