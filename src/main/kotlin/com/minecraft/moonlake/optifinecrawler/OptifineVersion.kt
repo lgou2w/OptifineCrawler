@@ -39,4 +39,13 @@ data class OptifineVersion(
      */
     fun isEmpty(): Boolean
             = (version == null && download == null && downloadMirror == null && changelog == null && date == null)
+
+    /**
+     * 获取此 Optifine 版本对应的 Minecraft 版本号
+     */
+    fun mcVer(): String {
+        if(version == null)
+            return "null"
+        return version!!.split(" ")[1]
+    }
 }

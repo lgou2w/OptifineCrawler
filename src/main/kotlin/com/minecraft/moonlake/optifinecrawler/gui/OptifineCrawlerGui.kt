@@ -21,20 +21,21 @@ import com.minecraft.moonlake.optifinecrawler.HttpRequestFactory
 import com.minecraft.moonlake.optifinecrawler.OptifineCrawler
 import com.minecraft.moonlake.optifinecrawler.OptifineVersion
 import javafx.application.Application
-import javafx.application.Platform
 import javafx.beans.binding.Bindings
-import javafx.concurrent.ScheduledService
 import javafx.concurrent.Task
 import javafx.concurrent.Worker
 import javafx.geometry.Insets
 import javafx.scene.Parent
 import javafx.scene.Scene
 import javafx.scene.control.*
+import javafx.scene.input.Clipboard
+import javafx.scene.input.ClipboardContent
 import javafx.scene.layout.BorderPane
 import javafx.scene.layout.HBox
+import javafx.stage.DirectoryChooser
+import javafx.stage.FileChooser
 import javafx.stage.Stage
 import javafx.util.Callback
-import javafx.util.Duration
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -67,10 +68,7 @@ class OptifineCrawlerGui: Application() {
 
     val version = "1.0.0"
     val author = "Month_Light"
-    val title = "OptifineCrawler $version by $author - https://github.com/lgou2w/OptifineCrawler"
-
-    // private member
-    private val optifineCrawler = OptifineCrawler(GuiRequestFactory()) // 使用 GUI 的请求工厂
+    val title = "OptifineCrawler v$version by $author - https://github.com/lgou2w/OptifineCrawler"
 
     /**************************************************************************
      *
@@ -79,6 +77,7 @@ class OptifineCrawlerGui: Application() {
      **************************************************************************/
 
     override fun start(primaryStage: Stage) {
+        owner = primaryStage
         primaryStage.scene = Scene(createUserGui(), 650.0, 400.0)
         primaryStage.isResizable = false
         primaryStage.title = title
@@ -92,15 +91,20 @@ class OptifineCrawlerGui: Application() {
      *
      **************************************************************************/
 
+    private var owner: Stage? = null
+    private val optifineCrawler = OptifineCrawler(GuiRequestFactory()) // 使用 GUI 的请求工厂
     private val tableView = TableView<OptifineVersion>()
     private val tableDownload = TableColumn<OptifineVersion, String>("Download")
     private val tablePreview = TableColumn<OptifineVersion, Boolean>("Preview")
     private val tableVersion = TableColumn<OptifineVersion, String>("Version")
+    private val tableMcVer = TableColumn<OptifineVersion, String>("MC")
     private val tableDate = TableColumn<OptifineVersion, String>("Date")
-    private val downloadSelected = Button("> Download Selected Item <")
-    private val requestVerList = Button("> Get The Version List <")
+    private val downloadSelectedInstall = Button(">Download&Install")
+    private val downloadSelected = Button(">Download")
+    private val requestVerList = Button(">GetVersionList")
     private val downloadLabel = Label("No Download")
     private val downloadProgress = ProgressBar()
+    private val menuCopy = MenuItem("Copy")
     private val downloadGroup = HBox()
     private val rootPane = BorderPane()
     private val btnGroup = HBox()
@@ -118,18 +122,23 @@ class OptifineCrawlerGui: Application() {
         downloadProgress.setPrefSize(120.0, downloadProgress.prefHeight)
         downloadGroup.padding = Insets(2.5, .0, 2.5, 5.0)
         downloadGroup.children.setAll(downloadLabel, downloadProgress)
-        btnGroup.children.setAll(requestVerList, downloadSelected, downloadGroup)
+        btnGroup.children.setAll(requestVerList, downloadSelected, downloadSelectedInstall, downloadGroup)
         tableDownload.cellValueFactory = Callback { it -> Bindings.createStringBinding(Callable { it.value.downloadMirror }) }
         tablePreview.cellValueFactory = Callback { it -> Bindings.createBooleanBinding(Callable { it.value.preview }) }
         tableVersion.cellValueFactory = Callback { it -> Bindings.createStringBinding(Callable { it.value.version }) }
+        tableMcVer.cellValueFactory = Callback { it -> Bindings.createStringBinding(Callable { it.value.mcVer() }) }
         tableDate.cellValueFactory = Callback { it -> Bindings.createStringBinding(Callable { it.value.date }) }
-        tableView.columns.addAll(tableVersion, tableDate, tableDownload, tablePreview)
-        tableDownload.prefWidth = 250.0
-        tablePreview.prefWidth = 80.0
+        tableView.columns.addAll(tableMcVer, tableVersion, tableDate, tableDownload, tablePreview)
+        tableView.selectionModel.selectionMode = SelectionMode.SINGLE
+        tableView.contextMenu = ContextMenu(menuCopy)
+        tableDownload.prefWidth = 230.0
+        tablePreview.prefWidth = 70.0
         tableVersion.prefWidth = 200.0
+        tableMcVer.prefWidth = 60.0
         tableDate.prefWidth = 80.0
         rootPane.center = tableView
         rootPane.bottom = btnGroup
+        rootPane.style = " -fx-font-family: 'Ubuntu', 'Microsoft YaHei'; -fx-font-size: 13px;"
         initListener()
         return rootPane
     }
@@ -137,23 +146,58 @@ class OptifineCrawlerGui: Application() {
     private fun initListener() {
         requestVerList.setOnAction { _ -> run {
             val verList = optifineCrawler.requestVersionList()
-            tableView.items.setAll(verList)
             println("Optifine Crawler Version List Size: ${verList.size}")
+            tableView.items.setAll(verList)
         }}
         downloadSelected.setOnAction { _ -> run {
-            val index = tableView.selectionModel.selectedIndex
-            if(index == -1) {
-                showMessage(Alert.AlertType.WARNING, "Please check the download and try again.", "Error:", ButtonType.OK)
-            } else {
-                val item = tableView.items[index]
+            val item = getTableViewSelected()
+            if(item != null) {
                 println("Start Download: " + item.version)
                 downloadVer(item)
             }
         }}
+        downloadSelectedInstall.setOnAction { _ -> run {
+            showMessage(Alert.AlertType.INFORMATION, "This feature has not yet been implemented.", "Info:", ButtonType.OK)
+        }}
+        menuCopy.setOnAction { _ -> run {
+            val item = getTableViewSelected()
+            if(item != null) {
+                val clipboard = Clipboard.getSystemClipboard()
+                val content = ClipboardContent()
+                content.putString(item.toString())
+                clipboard.setContent(content)
+            }
+        }}
+    }
+
+    private fun getTableViewSelected(message: Boolean = true): OptifineVersion? {
+        val index = tableView.selectionModel.selectedIndex
+        if(index == -1) {
+            if(message)
+                showMessage(Alert.AlertType.WARNING, "Please check the selected item and try again.", "Error:", ButtonType.OK)
+            return null
+        } else {
+            return tableView.items[index]
+        }
+    }
+
+    private fun customSaveDirectory(): File? {
+        val directoryChooser = DirectoryChooser()
+        directoryChooser.initialDirectory = File(System.getProperty("user.dir"))
+        directoryChooser.title = "Choose to save the folder:"
+        val file = directoryChooser.showDialog(owner)
+        if(file == null || file.isDirectory.not()) {
+            showMessage(Alert.AlertType.WARNING, "Please check whether to select a file or a folder.", "Error:", ButtonType.OK)
+            return null
+        } else {
+            return file
+        }
     }
 
     private fun downloadVer(optifineVer: OptifineVersion, disableBtnGroup: Boolean = true) {
-        val finalFile = File(System.getProperty("user.dir"), "${optifineVer.version}.jar")
+        val directory = customSaveDirectory() ?: return
+        val finalFile = File(directory, "${optifineVer.version}.jar")
+        println("Download to -> ${finalFile.absolutePath}")
         val task = (optifineCrawler.factory as GuiRequestFactory).requestDownloadTask(optifineVer, finalFile)
         task.stateProperty().addListener { _, _, newValue -> run {
             when(newValue) {
@@ -280,7 +324,7 @@ class OptifineCrawlerGui: Application() {
                 }
 
                 override fun done() {
-                    println("Task Done.")
+                    println("Download Task Done.")
                 }
 
                 private fun formatDownloadSpeed(downloaded: Long, lastDownloaded: Long): String {
