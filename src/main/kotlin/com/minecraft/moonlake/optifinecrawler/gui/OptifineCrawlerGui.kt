@@ -33,7 +33,6 @@ import javafx.scene.input.ClipboardContent
 import javafx.scene.layout.BorderPane
 import javafx.scene.layout.HBox
 import javafx.stage.DirectoryChooser
-import javafx.stage.FileChooser
 import javafx.stage.Stage
 import javafx.util.Callback
 import java.io.File
@@ -92,7 +91,7 @@ class OptifineCrawlerGui: Application() {
      **************************************************************************/
 
     private var owner: Stage? = null
-    private val optifineCrawler = OptifineCrawler(GuiRequestFactory()) // 使用 GUI 的请求工厂
+    private val optifineCrawler = GuiOptifineCrawler(this)
     private val tableView = TableView<OptifineVersion>()
     private val tableDownload = TableColumn<OptifineVersion, String>("Download")
     private val tablePreview = TableColumn<OptifineVersion, Boolean>("Preview")
@@ -158,6 +157,12 @@ class OptifineCrawlerGui: Application() {
         }}
         downloadSelectedInstall.setOnAction { _ -> run {
             showMessage(Alert.AlertType.INFORMATION, "This feature has not yet been implemented.", "Info:", ButtonType.OK)
+//            val mcDir = customSaveDirectory()
+//            if(mcDir == null || mcDir.name != ".minecraft") {
+//                showMessage(Alert.AlertType.WARNING, "Please check whether to select is '.minecraft' folder.", "Error:", ButtonType.OK)
+//            } else {
+//                println(mcDir.absolutePath + " -> " + mcDir.name)
+//            }
         }}
         menuCopy.setOnAction { _ -> run {
             val item = getTableViewSelected()
@@ -223,6 +228,19 @@ class OptifineCrawlerGui: Application() {
         alert.graphic = null
         alert.headerText = null
         return alert.showAndWait()
+    }
+
+    /**************************************************************************
+     *
+     * Private Inner Class
+     *
+     **************************************************************************/
+
+    private inner class GuiOptifineCrawler(private val gui: OptifineCrawlerGui): OptifineCrawler(GuiRequestFactory()) {
+        // 处理异常时显示消息框
+        override fun handlerException(e: Exception) {
+            gui.showMessage(Alert.AlertType.ERROR, "Exception Message: ${e.localizedMessage}", "Error:", ButtonType.OK)
+        }
     }
 
     private inner class GuiRequestFactory: HttpRequestFactory {

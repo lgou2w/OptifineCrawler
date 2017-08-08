@@ -95,6 +95,7 @@ open class OptifineCrawler {
                         }
                     }
         } catch (e: Exception) {
+            handlerException(e)
             throw RuntimeException(e)
         }
         return list
@@ -129,6 +130,7 @@ open class OptifineCrawler {
                 target = "http://optifine.net/downloadx?f=${if(optifineVer.preview) "preview_" else ""}OptiFine${matcher.group(1)}"
             return target
         } catch (e: Exception) {
+            handlerException(e)
             throw RuntimeException(e)
         }
     }
@@ -138,6 +140,8 @@ open class OptifineCrawler {
      */
     protected open fun parseDownloadUrl(): String
             = "$url/downloads"
+
+    protected open fun handlerException(e: Exception): Unit {}
 
     /**************************************************************************
      *
