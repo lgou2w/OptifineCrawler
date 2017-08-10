@@ -17,13 +17,17 @@
 
 package com.minecraft.moonlake.optifinecrawler.gui
 
+import com.google.gson.GsonBuilder
 import com.minecraft.moonlake.optifinecrawler.HttpRequestFactory
 import com.minecraft.moonlake.optifinecrawler.OptifineCrawler
 import com.minecraft.moonlake.optifinecrawler.OptifineVersion
+import com.minecraft.moonlake.optifinecrawler.mc.MinecraftLibrary
+import com.minecraft.moonlake.optifinecrawler.mc.MinecraftVersion
 import javafx.application.Application
 import javafx.beans.binding.Bindings
 import javafx.concurrent.Task
 import javafx.concurrent.Worker
+import javafx.event.EventHandler
 import javafx.geometry.Insets
 import javafx.scene.Parent
 import javafx.scene.Scene
@@ -35,15 +39,16 @@ import javafx.scene.layout.HBox
 import javafx.stage.DirectoryChooser
 import javafx.stage.Stage
 import javafx.util.Callback
-import java.io.File
-import java.io.IOException
-import java.io.InputStream
-import java.io.RandomAccessFile
+import java.awt.Toolkit
+import java.io.*
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.file.Files
 import java.text.DecimalFormat
 import java.util.*
 import java.util.concurrent.Callable
+import java.util.function.Consumer
+import java.util.zip.ZipFile
 
 class OptifineCrawlerGui: Application() {
 
@@ -91,6 +96,7 @@ class OptifineCrawlerGui: Application() {
      **************************************************************************/
 
     private var owner: Stage? = null
+    private val gson = GsonBuilder().create()
     private val optifineCrawler = GuiOptifineCrawler(this)
     private val tableView = TableView<OptifineVersion>()
     private val tableDownload = TableColumn<OptifineVersion, String>("Download")
@@ -130,6 +136,7 @@ class OptifineCrawlerGui: Application() {
         tableView.columns.addAll(tableMcVer, tableVersion, tableDate, tableDownload, tablePreview)
         tableView.selectionModel.selectionMode = SelectionMode.SINGLE
         tableView.contextMenu = ContextMenu(menuCopy)
+        tableView.items.add(OptifineVersion("OptiFine 1.12.1 HD U C5")) // test: optifine.net web offline
         tableDownload.prefWidth = 230.0
         tablePreview.prefWidth = 70.0
         tableVersion.prefWidth = 200.0
@@ -151,18 +158,62 @@ class OptifineCrawlerGui: Application() {
         downloadSelected.setOnAction { _ -> run {
             val item = getTableViewSelected()
             if(item != null) {
-                println("Start Download: " + item.version)
+                println("Start Download: ${item.version}")
                 downloadVer(item)
             }
         }}
         downloadSelectedInstall.setOnAction { _ -> run {
-            showMessage(Alert.AlertType.INFORMATION, "This feature has not yet been implemented.", "Info:", ButtonType.OK)
-//            val mcDir = customSaveDirectory()
-//            if(mcDir == null || mcDir.name != ".minecraft") {
-//                showMessage(Alert.AlertType.WARNING, "Please check whether to select is '.minecraft' folder.", "Error:", ButtonType.OK)
-//            } else {
-//                println(mcDir.absolutePath + " -> " + mcDir.name)
-//            }
+            val item = getTableViewSelected()
+            if(item != null) {
+                val mcDir = customSaveDirectory() ?: return@run
+                if(mcDir.name != ".minecraft") {
+                    showMessage(Alert.AlertType.WARNING, "Please check whether to select is '.minecraft' folder.", "Error:", ButtonType.OK)
+                } else {
+                    val mcVer = getOptifineMcVer(mcDir, item)
+                    if(mcVer == null) {
+                        showMessage(Alert.AlertType.WARNING, "Please check if the version of mc to be installed exists.", "Error:", ButtonType.OK)
+                        return@run
+                    }
+                    println("Start Download: ${item.version}")
+                    val consumer = Consumer<File> {
+                        val ver = item.mcVer()
+                        val copyVer = mcVer.copy()
+                        val optifineVer = item.version!!
+                        val launchVer = adapterLaunchVer(ver)
+                        copyVer.id = "$ver-${optifineVer.replace(" ", "_")}"
+                        copyVer.inheritsFrom = mcVer.id
+                        copyVer.libraries.clear()
+                        copyVer.libraries.add(0, gson.fromJson("{\"name\":\"optifine:OptiFine:${optifineVer.substring(optifineVer.indexOf("_") + 1)}\"}", MinecraftLibrary::class.java))
+
+                        // copy file to libraries and add optifine arguments
+                        val copyTo = File(mcDir, "libraries/optifine/Optifine/Optifine-${optifineVer.substring(optifineVer.indexOf("_") + 1)}/$optifineVer.jar")
+                        if(!copyTo.parentFile.exists())
+                            Files.createDirectory(copyTo.parentFile.toPath())
+                        if(copyTo.exists())
+                            copyTo.delete()
+                        Files.copy(it.toPath(), copyTo.toPath())
+                        ZipFile(it).use {
+                            if(it.getEntry("optifine/OptiFineTweaker.class") != null) {
+                                if(!copyVer.mainClass.startsWith("net.minecraft.launchwrapper.")) {
+                                    copyVer.mainClass = "net.minecraft.launchwrapper.Launch"
+                                    copyVer.libraries.add(1, gson.fromJson("{\"name\":\"net.minecraft:launchwrapper:$launchVer\"}", MinecraftLibrary::class.java))
+                                }
+                                if(!copyVer.minecraftArguments.contains("FMLTweaker"))
+                                    copyVer.minecraftArguments += " --tweakClass optifine.OptiFineTweaker"
+                            }
+                        }
+                        val final = File(mcDir, "versions/${copyVer.id}/${copyVer.id}.json")
+                        if(!final.parentFile.exists())
+                            Files.createDirectory(final.parentFile.toPath())
+                        Files.write(final.toPath(), gson.toJson(copyVer).toByteArray())
+                        it.delete()
+                        showMessage(Alert.AlertType.INFORMATION, "Installation complete.", "Info:", ButtonType.OK)
+                    }
+                    val exists = File(mcDir, "OptiFine_1.12.1_HD_U_C5.jar")
+                    if(!exists.exists()) downloadVer(item, true, mcDir, consumer)
+                    else consumer.accept(exists)
+                }
+            }
         }}
         menuCopy.setOnAction { _ -> run {
             val item = getTableViewSelected()
@@ -199,11 +250,12 @@ class OptifineCrawlerGui: Application() {
         }
     }
 
-    private fun downloadVer(optifineVer: OptifineVersion, disableBtnGroup: Boolean = true) {
-        val directory = customSaveDirectory() ?: return
+    private fun downloadVer(optifineVer: OptifineVersion, disableBtnGroup: Boolean = true, dir: File? = null, consumer: Consumer<File>? = null) {
+        val directory = dir?: customSaveDirectory() ?: return
         val finalFile = File(directory, "${optifineVer.version}.jar")
         println("Download to -> ${finalFile.absolutePath}")
         val task = (optifineCrawler.factory as GuiRequestFactory).requestDownloadTask(optifineVer, finalFile)
+        task.onSucceeded = EventHandler { _ -> consumer?.accept(finalFile) }
         task.stateProperty().addListener { _, _, newValue -> run {
             when(newValue) {
                 Worker.State.SCHEDULED -> disableBtnGroupButton(disableBtnGroup)
@@ -228,6 +280,20 @@ class OptifineCrawlerGui: Application() {
         alert.graphic = null
         alert.headerText = null
         return alert.showAndWait()
+    }
+
+    private fun getOptifineMcVer(mcDir: File, optifineVer: OptifineVersion): MinecraftVersion? {
+        val mcVer = optifineVer.mcVer()
+        val mcVerFile = File(mcDir, "versions/$mcVer/$mcVer.json")
+        if(!mcVerFile.exists())
+            return null
+        return gson.fromJson(FileReader(mcVerFile), MinecraftVersion::class.java)
+    }
+
+    private fun adapterLaunchVer(mcVer: String): Double {
+        if(mcVer.contains("1.12"))
+            return 1.12
+        return 1.7
     }
 
     /**************************************************************************
@@ -288,7 +354,7 @@ class OptifineCrawlerGui: Application() {
                             throw IllegalStateException("临时文件处于锁状态, 请检测是否被其他进程占用.")
                         input = connection.inputStream
                         access = RandomAccessFile(tmp, "rw")
-                        val buffer: ByteArray = ByteArray(1024)
+                        val buffer: ByteArray = ByteArray(4096)
                         var length = 0; var downloaded = 0L
                         var lastDownloaded = 0L
                         var lastTime = System.currentTimeMillis()
@@ -343,6 +409,7 @@ class OptifineCrawlerGui: Application() {
 
                 override fun done() {
                     println("Download Task Done.")
+                    Toolkit.getDefaultToolkit().beep()
                 }
 
                 private fun formatDownloadSpeed(downloaded: Long, lastDownloaded: Long): String {

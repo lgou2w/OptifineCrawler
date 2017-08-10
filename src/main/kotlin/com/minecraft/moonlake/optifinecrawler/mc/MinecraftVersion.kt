@@ -32,7 +32,8 @@ data class MinecraftVersion(
         var releaseTime: String,
         var time: String,
         var type: String,
-        var libraries: MutableList<MinecraftLibrary>) {
+        var libraries: MutableList<MinecraftLibrary>,
+        var inheritsFrom: String? = null) {
 
     /**
      * assetIndex : {
@@ -56,6 +57,7 @@ data class MinecraftVersion(
      *      }
      * }
      * id : 1.12
+     * inheritsFrom : 1.12 /** Forge、Optifine、LiteLoader etc... */
      * libraries : is too long...
      * logging : {
      *      "client":{
