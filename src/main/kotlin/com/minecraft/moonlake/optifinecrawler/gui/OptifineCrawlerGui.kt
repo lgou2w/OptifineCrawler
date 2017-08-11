@@ -70,7 +70,7 @@ class OptifineCrawlerGui: Application() {
      *
      **************************************************************************/
 
-    val version = "1.0.0"
+    val version = "1.0.1"
     val author = "Month_Light"
     val title = "OptifineCrawler v$version by $author - https://github.com/lgou2w/OptifineCrawler"
 
@@ -136,7 +136,6 @@ class OptifineCrawlerGui: Application() {
         tableView.columns.addAll(tableMcVer, tableVersion, tableDate, tableDownload, tablePreview)
         tableView.selectionModel.selectionMode = SelectionMode.SINGLE
         tableView.contextMenu = ContextMenu(menuCopy)
-        tableView.items.add(OptifineVersion("OptiFine 1.12.1 HD U C5")) // test: optifine.net web offline
         tableDownload.prefWidth = 230.0
         tablePreview.prefWidth = 70.0
         tableVersion.prefWidth = 200.0
@@ -180,13 +179,16 @@ class OptifineCrawlerGui: Application() {
                         val copyVer = mcVer.copy()
                         val optifineVer = item.version!!
                         val launchVer = adapterLaunchVer(ver)
-                        copyVer.id = "$ver-${optifineVer.replace(" ", "_")}"
+                        val libraryVer = optifineVer.substring(optifineVer.indexOf(" ") + 1)
+
+                        // modify copy version info
+                        copyVer.id = "$ver-OptiFine_${arrayIndexMerge(optifineVer.split(" ").toTypedArray(), '_', 2)}"
                         copyVer.inheritsFrom = mcVer.id
                         copyVer.libraries.clear()
-                        copyVer.libraries.add(0, gson.fromJson("{\"name\":\"optifine:OptiFine:${optifineVer.substring(optifineVer.indexOf("_") + 1)}\"}", MinecraftLibrary::class.java))
+                        copyVer.libraries.add(0, gson.fromJson("{\"name\":\"optifine:OptiFine:${libraryVer.replace(" ", "_")}\"}", MinecraftLibrary::class.java))
 
                         // copy file to libraries and add optifine arguments
-                        val copyTo = File(mcDir, "libraries/optifine/Optifine/Optifine-${optifineVer.substring(optifineVer.indexOf("_") + 1)}/$optifineVer.jar")
+                        val copyTo = File(mcDir, "libraries/optifine/Optifine/${libraryVer.replace(" ", "_")}/Optifine-${libraryVer.replace(" ", "_")}.jar")
                         if(!copyTo.parentFile.exists())
                             Files.createDirectory(copyTo.parentFile.toPath())
                         if(copyTo.exists())
@@ -209,7 +211,7 @@ class OptifineCrawlerGui: Application() {
                         it.delete()
                         showMessage(Alert.AlertType.INFORMATION, "Installation complete.", "Info:", ButtonType.OK)
                     }
-                    val exists = File(mcDir, "OptiFine_1.12.1_HD_U_C5.jar")
+                    val exists = File(mcDir, "${item.version}.jar")
                     if(!exists.exists()) downloadVer(item, true, mcDir, consumer)
                     else consumer.accept(exists)
                 }
@@ -294,6 +296,19 @@ class OptifineCrawlerGui: Application() {
         if(mcVer.contains("1.12"))
             return 1.12
         return 1.7
+    }
+
+    private fun arrayIndexMerge(array: Array<String>, merge: Char, index: Int): String {
+        val stringBuilder = StringBuilder()
+        val length = array.size
+        array.forEachIndexed { i, str -> run {
+            if(i >= index) {
+                stringBuilder.append(str)
+                if(i + 1 != length)
+                    stringBuilder.append(merge)
+            }
+        }}
+        return stringBuilder.toString()
     }
 
     /**************************************************************************
